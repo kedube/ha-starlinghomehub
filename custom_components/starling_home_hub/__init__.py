@@ -6,6 +6,8 @@ https://github.com/ThomasLomas/ha-starlinghomehub
 
 from __future__ import annotations
 
+import re
+
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -97,7 +99,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: StarlingHomeHub
             CONF_RTSP_PASSWORD: None,
         }
         new_data = {**config_entry.data, **new_options}
-        new_data[CONF_URL] = new_data[CONF_URL].replace("v1", "v2")
+        new_data[CONF_URL] = re.sub(r"/v1(/?)$", r"/v2\1", new_data[CONF_URL])
 
         hass.config_entries.async_update_entry(
             config_entry, data=new_data, minor_version=0, version=2)

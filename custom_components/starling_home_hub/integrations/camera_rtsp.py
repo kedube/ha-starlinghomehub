@@ -1,5 +1,7 @@
 """Specific code for RTSP camera streams."""
 
+from urllib.parse import quote, urlsplit, urlunsplit
+
 from custom_components.starling_home_hub.coordinator import StarlingHomeHubDataUpdateCoordinator
 from custom_components.starling_home_hub.entities.camera import StarlingHomeHubBaseCamera
 
@@ -29,7 +31,9 @@ class StarlingHomeHubRTSPCamera(StarlingHomeHubBaseCamera):
         url = self.get_device().properties["rtspUrl"]
 
         if self._rtsp_username and self._rtsp_password:
-            url = url.replace(
-                "rtsp://", f"rtsp://{self._rtsp_username}:{self._rtsp_password}@")
+            parts = urlsplit(url)
+            host = parts.netloc.rpartition("@")[2]
+            creds = f"{quote(self._rtsp_username, safe='')}:{quote(self._rtsp_password, safe='')}"
+            url = urlunsplit(parts._replace(netloc=f"{creds}@{host}"))
 
         return url

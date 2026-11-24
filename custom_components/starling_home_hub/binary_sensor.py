@@ -41,4 +41,4 @@ async def async_setup_entry(hass: HomeAssistant, entry: StarlingHomeHubConfigEnt
                             )
                         )
 
-    async_add_entities(entities, update_before_add=True)
+    async_add_entities(entities)

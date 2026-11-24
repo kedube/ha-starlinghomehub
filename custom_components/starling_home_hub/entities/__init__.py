@@ -1,7 +1,7 @@
 """Contains entities that integrate directly with Home Assistant."""
 
 from __future__ import annotations
-from typing import TypeVar
+from typing import Any
 
 from homeassistant.core import callback
 from homeassistant.helpers.entity import DeviceInfo
@@ -12,7 +12,8 @@ from custom_components.starling_home_hub.coordinator import StarlingHomeHubDataU
 from custom_components.starling_home_hub.models.api.device import Device
 
 
-DeviceType = TypeVar("D")
+# The raw `properties` dict of a device, as passed to entity description callables.
+type DeviceType = dict[str, Any]
 
 
 class StarlingHomeHubEntity(CoordinatorEntity):
@@ -51,6 +52,16 @@ class StarlingHomeHubEntity(CoordinatorEntity):
         """Handle updated data from the coordinator."""
         self.async_write_ha_state()
 
+    _last_device: Device | None = None
+
+    @property
+    def available(self) -> bool:
+        """Unavailable when polling fails or the hub stops reporting the device."""
+        return super().available and self.device_id in self.coordinator.config_entry.runtime_data.devices
+
     def get_device(self) -> Device:
-        """Get the actual device data from coordinator."""
-        return self.coordinator.config_entry.runtime_data.devices.get(self.device_id)
+        """Get the device, falling back to the last-known copy if it disappeared."""
+        device = self.coordinator.config_entry.runtime_data.devices.get(self.device_id)
+        if device is not None:
+            self._last_device = device
+        return self._last_device

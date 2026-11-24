@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import socket
+from typing import Any
 
 import aiohttp
-import async_timeout
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.starling_home_hub.const import LOGGER
+from custom_components.starling_home_hub.models.api import ApiModel
 from custom_components.starling_home_hub.models.api.device import Device, DeviceUpdate
 from custom_components.starling_home_hub.models.api.devices import Devices
 from custom_components.starling_home_hub.models.api.status import Status
@@ -30,6 +31,16 @@ class StarlingHomeHubApiClientAuthenticationError(
     StarlingHomeHubApiClientError
 ):
     """Exception to indicate an authentication error."""
+
+
+def _parse[ModelT: ApiModel](model: type[ModelT], payload: Any) -> ModelT:
+    """Build a response model, mapping malformed payloads to a client error."""
+    try:
+        return model.from_dict(payload)
+    except (AttributeError, TypeError) as exception:
+        raise StarlingHomeHubApiClientError(
+            f"Unexpected {model.__name__} response from the hub"
+        ) from exception
 
 
 class StarlingHomeHubApiClient:
@@ -56,7 +67,7 @@ class StarlingHomeHubApiClient:
             method="get", url=self.get_api_url_for_endpoint("status")
         )
 
-        return Status.create_from_dict(status_response)
+        return _parse(Status, status_response)
 
     async def async_get_device(self, device_id: str) -> Device:
         """Get devices from the API."""
@@ -64,7 +75,7 @@ class StarlingHomeHubApiClient:
             method="get", url=self.get_api_url_for_endpoint(f"devices/{device_id}")
         )
 
-        return Device(**device_response)
+        return _parse(Device, device_response)
 
     async def async_update_device(self, device_id: str, update: dict) -> DeviceUpdate:
         """Update a device."""
@@ -79,7 +90,7 @@ class StarlingHomeHubApiClient:
 
         LOGGER.debug(f"Response from update: {update_response}")
 
-        device_update = DeviceUpdate(**update_response)
+        device_update = _parse(DeviceUpdate, update_response)
 
         if device_update.setStatus:
             # Loop all the set status results and check if any errors
@@ -99,13 +110,13 @@ class StarlingHomeHubApiClient:
 
         return device_update
 
-    async def async_get_devices(self) -> list[Device]:
+    async def async_get_devices(self) -> list[dict[str, Any]]:
         """Get devices from the API."""
         devices_response = await self._api_wrapper(
             method="get", url=self.get_api_url_for_endpoint("devices")
         )
 
-        return Devices(**devices_response).devices
+        return _parse(Devices, devices_response).devices
 
     async def async_start_stream(self, device_id: str, sdp_offer: str) -> StartStream:
         """Start a WebRTC Stream."""
@@ -119,7 +130,7 @@ class StarlingHomeHubApiClient:
             headers={"Content-type": "application/json; charset=UTF-8"}
         )
 
-        return StartStream(**start_stream_response)
+        return _parse(StartStream, start_stream_response)
 
     async def async_stop_stream(self, device_id: str, stream_id: str) -> StreamStatus:
         """Stop a WebRTC Stream."""
@@ -131,7 +142,7 @@ class StarlingHomeHubApiClient:
             data={}
         )
 
-        return StreamStatus(**stop_stream_response)
+        return _parse(StreamStatus, stop_stream_response)
 
     async def async_get_camera_snapshot(self, device_id: str) -> bytes:
         """Get a camera snapshot."""
@@ -152,7 +163,7 @@ class StarlingHomeHubApiClient:
             data={}
         )
 
-        return StreamStatus(**extend_stream_response)
+        return _parse(StreamStatus, extend_stream_response)
 
     async def _api_wrapper(
         self,
@@ -161,16 +172,15 @@ class StarlingHomeHubApiClient:
         data: dict | None = None,
         headers: dict | None = None,
         as_json: bool = True,
-    ) -> any:
+    ) -> Any:
         """Get information from the API."""
         try:
-            async with async_timeout.timeout(10):
-                response = await self._session.request(
-                    method=method,
-                    url=url,
-                    headers=headers,
-                    json=data,
-                )
+            async with asyncio.timeout(10), self._session.request(
+                method=method,
+                url=url,
+                headers=headers,
+                json=data,
+            ) as response:
                 if response.status in (401, 403):
                     raise StarlingHomeHubApiClientAuthenticationError(
                         "Invalid credentials",

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from custom_components.starling_home_hub.api import (StarlingHomeHubApiClient, StarlingHomeHubApiClientAuthenticationError,
@@ -17,6 +18,9 @@ from custom_components.starling_home_hub.models.api.stream import StartStream, S
 from custom_components.starling_home_hub.models.coordinator import CoordinatorData
 
 type StarlingHomeHubConfigEntry = ConfigEntry[CoordinatorData]
+
+# The hub is a small device; cap parallel per-device requests during a poll.
+MAX_CONCURRENT_DEVICE_REQUESTS = 4
 
 
 class StarlingHomeHubDataUpdateCoordinator(DataUpdateCoordinator):
@@ -54,8 +58,11 @@ class StarlingHomeHubDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def update_device(self, device_id: str, update: dict) -> DeviceUpdate:
         """Update a device."""
-        device_update = await self.client.async_update_device(device_id=device_id, update=update)
-        await self.refresh_data()
+        try:
+            device_update = await self.client.async_update_device(device_id=device_id, update=update)
+        except StarlingHomeHubApiClientError as err:
+            raise HomeAssistantError(f"Failed to update {device_id}: {err}") from err
+        await self.async_refresh()
         return device_update
 
     async def get_snapshot(self, device_id: str) -> bytes:
@@ -77,25 +84,27 @@ class StarlingHomeHubDataUpdateCoordinator(DataUpdateCoordinator):
     async def fetch_data(self) -> CoordinatorData:
         """Fetch data for the devices."""
 
-        devices = await self.client.async_get_devices()
-        status = await self.client.async_get_status()
+        devices, status = await asyncio.gather(
+            self.client.async_get_devices(), self.client.async_get_status())
 
-        full_devices: dict[str, Device] = {}
-        for device in devices:
-            full_device = await self.client.async_get_device(device_id=device["id"])
-            full_devices[device["id"]] = full_device
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_DEVICE_REQUESTS)
 
+        async def fetch_device(device_id: str) -> tuple[str, Device]:
+            async with semaphore:
+                return device_id, await self.client.async_get_device(device_id=device_id)
+
+        full_devices: dict[str, Device] = dict(
+            await asyncio.gather(*(fetch_device(device["id"]) for device in devices)))
+
+        # Carry the snapshot cache over so a poll doesn't discard fresh snapshots.
+        previous: CoordinatorData | None = getattr(self.config_entry, "runtime_data", None)
         self.config_entry.runtime_data = CoordinatorData(
-            devices=full_devices, status=status)
+            devices=full_devices,
+            status=status,
+            device_snapshots_cache=previous.device_snapshots_cache if previous else {},
+        )
 
         return self.config_entry.runtime_data
-
-    async def refresh_data(self) -> bool:
-        """Refresh data."""
-        data = await self.fetch_data()
-        self.async_set_updated_data(data)
-
-        return True
 
     async def _async_update_data(self) -> CoordinatorData:
         """Update data via library."""

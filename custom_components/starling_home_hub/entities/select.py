@@ -55,7 +55,10 @@ class StarlingHomeHubSelectEntity(StarlingHomeHubEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        return self.entity_description.value_fn(self.get_device().properties)
+        value = self.entity_description.value_fn(self.get_device().properties)
+        if self.entity_description.prepend_none_option and value == "":
+            return "None"  # the hub reports "" for no selection; mirror async_select_option
+        return value
 
     @property
     def icon(self) -> str | None:

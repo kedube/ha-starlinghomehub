@@ -6,7 +6,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, FlowResult
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.helpers import selector
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.starling_home_hub.api import (StarlingHomeHubApiClient, StarlingHomeHubApiClientAuthenticationError,
                                                      StarlingHomeHubApiClientCommunicationError, StarlingHomeHubApiClientError)
@@ -77,6 +77,7 @@ class StarlingHomeHubFlowHandler(ConfigFlow, domain=DOMAIN):
 
         errors = {}
         if user_input is not None:
+            self._async_abort_entries_match({CONF_URL: user_input[CONF_URL]})
             errors = await self.validate_credentials(user_input, errors)
 
             if not errors:
@@ -97,10 +98,9 @@ class StarlingHomeHubFlowHandler(ConfigFlow, domain=DOMAIN):
         reconfigure_entry = self._get_reconfigure_entry()
         errors = {}
 
-        LOGGER.debug(f"Reconfiguring entry {reconfigure_entry.data}")
+        LOGGER.debug("Reconfiguring entry %s", reconfigure_entry.entry_id)
 
         if user_input is not None:
-            LOGGER.debug(f"Updating entry {user_input}")
 
             errors = await self.validate_credentials(user_input, errors)
 
@@ -122,7 +122,7 @@ class StarlingHomeHubFlowHandler(ConfigFlow, domain=DOMAIN):
         client = StarlingHomeHubApiClient(
             url=url,
             api_key=api_key,
-            session=async_create_clientsession(self.hass),
+            session=async_get_clientsession(self.hass),
         )
 
         status_body = await client.async_get_status()
@@ -132,7 +132,7 @@ class StarlingHomeHubFlowHandler(ConfigFlow, domain=DOMAIN):
                 "Starling reporting that API is not ready"
             )
 
-        if not status_body.permissions["read"]:
+        if not status_body.permissions.read:
             raise StarlingHomeHubApiClientAuthenticationError(
                 "API Key does not have read permissions",
             )

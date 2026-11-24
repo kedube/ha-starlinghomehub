@@ -52,12 +52,13 @@ class StarlingHomeHubLightEntity(StarlingHomeHubEntity, LightEntity):
                     (kwargs.get(ATTR_BRIGHTNESS) / 255) * 100
                 )
 
-            if self.color_mode == ColorMode.HS and ATTR_HS_COLOR in kwargs:
+            supported = self.supported_color_modes
+            if ATTR_HS_COLOR in kwargs and ColorMode.HS in supported:
                 _on_args["hue"] = kwargs.get(ATTR_HS_COLOR)[0]
                 _on_args["saturation"] = kwargs.get(ATTR_HS_COLOR)[1]
             elif (
-                self.color_mode == ColorMode.COLOR_TEMP
-                and ATTR_COLOR_TEMP_KELVIN in kwargs
+                ATTR_COLOR_TEMP_KELVIN in kwargs
+                and ColorMode.COLOR_TEMP in supported
             ):
                 _on_args["colorTemperature"] = color.color_temperature_kelvin_to_mired(
                     kwargs.get(ATTR_COLOR_TEMP_KELVIN)
@@ -100,7 +101,7 @@ class StarlingHomeHubLightEntity(StarlingHomeHubEntity, LightEntity):
     @property
     def available(self) -> bool:
         """Return device availability."""
-        return self.get_device() is not None and self.get_device().properties["isOnline"]
+        return super().available and self.get_device().properties["isOnline"]
 
     @property
     def is_on(self) -> bool:
@@ -139,17 +140,17 @@ class StarlingHomeHubLightEntity(StarlingHomeHubEntity, LightEntity):
     #     return device.properties["colorTemperature"]
 
     @property
-    def hs_color(self) -> tuple[int, int] | None:
+    def hs_color(self) -> tuple[float, float] | None:
         """Return the current hue and saturation."""
         device = self.get_device()
 
         if "hue" not in device.properties or "saturation" not in device.properties:
             return None
 
-        return [device.properties["hue"], device.properties["saturation"]]
+        return (device.properties["hue"], device.properties["saturation"])
 
     @property
-    def color_mode(self) -> str:
+    def color_mode(self) -> ColorMode | None:
         """Return the current color mode."""
         supported_modes = self.supported_color_modes
         if supported_modes is None:

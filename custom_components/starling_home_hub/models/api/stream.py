@@ -2,9 +2,11 @@
 
 from dataclasses import dataclass
 
+from custom_components.starling_home_hub.models.api import ApiModel
+
 
 @dataclass
-class StartStream:
+class StartStream(ApiModel):
     """Class for handling starting a WebRTC stream."""
 
     status: str
@@ -14,14 +16,14 @@ class StartStream:
 
 
 @dataclass
-class StreamStatus:
+class StreamStatus(ApiModel):
     """Class for stream status."""
 
     status: str
 
 
 @dataclass
-class StreamExtend:
+class StreamExtend(ApiModel):
     """Class for extending stream."""
 
     status: str

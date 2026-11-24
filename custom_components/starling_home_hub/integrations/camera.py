@@ -25,8 +25,8 @@ def get_camera_dynamic_binary_sensor_entities(device: dict) -> list[StarlingHome
             StarlingHomeHubBinarySensorEntityDescription(
                 key="zone_activity_detected_" + slugify(zoneName),
                 name=zoneName + " Detected",
-                relevant_fn=lambda device: key in device,
-                value_fn=lambda device: device[key],
+                relevant_fn=lambda device, key=key: key in device,
+                value_fn=lambda device, key=key: device[key],
                 device_class=BinarySensorDeviceClass.MOTION
             )
         )
@@ -38,8 +38,8 @@ def get_camera_dynamic_binary_sensor_entities(device: dict) -> list[StarlingHome
             StarlingHomeHubBinarySensorEntityDescription(
                 key="face_detected_" + slugify(faceName),
                 name=faceName + " Detected",
-                relevant_fn=lambda device: key in device,
-                value_fn=lambda device: device[key],
+                relevant_fn=lambda device, key=key: key in device,
+                value_fn=lambda device, key=key: device[key],
                 device_class=BinarySensorDeviceClass.MOTION,
                 icon="mdi:face-recognition",
                 entity_registry_enabled_default=False

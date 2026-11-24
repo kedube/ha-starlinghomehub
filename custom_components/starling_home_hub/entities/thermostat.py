@@ -65,8 +65,7 @@ class StarlingHomeHubThermostatEntity(StarlingHomeHubEntity, ClimateEntity):
     @property
     def available(self) -> bool:
         """Return device availability."""
-        device = self.get_device()
-        return device is not None and device.properties["isOnline"]
+        return super().available and self.get_device().properties["isOnline"]
 
     @property
     def current_temperature(self) -> float | None:
@@ -82,8 +81,8 @@ class StarlingHomeHubThermostatEntity(StarlingHomeHubEntity, ClimateEntity):
         """Return the temperature currently set to be reached."""
         device = self.get_device()
 
-        if "targetTemperature" in device.properties and self.hvac_mode == HVACMode.HEAT or self.hvac_mode == HVACMode.COOL:
-            return device.properties["targetTemperature"]
+        if self.hvac_mode in (HVACMode.HEAT, HVACMode.COOL):
+            return device.properties.get("targetTemperature")
 
         return None
 
@@ -216,7 +215,6 @@ class StarlingHomeHubThermostatEntity(StarlingHomeHubEntity, ClimateEntity):
                     update={"targetTemperature": temp}
                 )
 
-            await self.coordinator.refresh_data()
         except Exception as err:
             raise HomeAssistantError(
                 f"Error setting {self.entity_id} temperature to {
@@ -236,7 +234,6 @@ class StarlingHomeHubThermostatEntity(StarlingHomeHubEntity, ClimateEntity):
                 update={"hvacMode": api_mode}
             )
 
-            await self.coordinator.refresh_data()
         except Exception as err:
             raise HomeAssistantError(
                 f"Error setting {self.entity_id} HVAC mode to {
@@ -255,7 +252,6 @@ class StarlingHomeHubThermostatEntity(StarlingHomeHubEntity, ClimateEntity):
                 device_id=self.device_id,
                 update={"fanRunning": fan_state}
             )
-            await self.coordinator.refresh_data()
         except Exception as err:
             raise HomeAssistantError(
                 f"Error setting {self.entity_id} fan mode to {fan_mode}: {err}"

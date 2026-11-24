@@ -1,0 +1,7 @@
+-r requirements.txt
+# Pins homeassistant to the same version as requirements.txt; bump both together.
+pytest-homeassistant-custom-component==0.13.356
+# Requirements of HA's camera and stream components, which the integration imports.
+PyTurboJPEG==1.8.3
+av==17.0.1
+numpy==2.3.2
